@@ -7,7 +7,7 @@ import streamlit as st
 import captum
 from captum.attr import IntegratedGradients
 
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Any, Optional, Callable
 from torch.nn.functional import softmax
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
@@ -253,7 +253,24 @@ from transformers import AutoModel
 MTL_DIR = "models/mtl" 
 
 class SimpleMTL(nn.Module):
-    def __init__(self, encoder_name_or_path, num_sent=3, num_emo=6):
+    """A simple Multi-Task Learning (MTL) model for sentiment and emotion classification.
+
+    This model uses a shared encoder (e.g., BERTweet or DistilRoBERTa) and two separate
+    classification heads for sentiment and emotion tasks.
+
+    Attributes:
+        encoder (transformers.PreTrainedModel): The shared encoder model.
+        sent_head (nn.Linear): Classification head for sentiment analysis.
+        emo_head (nn.Linear): Classification head for emotion analysis.
+    """
+    def __init__(self, encoder_name_or_path: str, num_sent: int = 3, num_emo: int = 6):
+        """Initializes the SimpleMTL model.
+
+        Args:
+            encoder_name_or_path (str): The name or path of the pre-trained encoder model.
+            num_sent (int, optional): Number of sentiment classes. Defaults to 3.
+            num_emo (int, optional): Number of emotion classes. Defaults to 6.
+        """
         super().__init__()
         self.encoder = AutoModel.from_pretrained(encoder_name_or_path)
         hidden = self.encoder.config.hidden_size
@@ -261,12 +278,30 @@ class SimpleMTL(nn.Module):
         self.emo_head  = nn.Linear(hidden, num_emo)
 
     def forward(self, **enc):
+        """Forward pass of the model.
+
+        Args:
+            **enc: Keyword arguments containing the input encodings (e.g., input_ids, attention_mask)
+                  as expected by the encoder.
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]: A tuple containing the sentiment logits and emotion logits.
+        """
         out = self.encoder(**enc)
         cls = out.last_hidden_state[:, 0, :]
         return self.sent_head(cls), self.emo_head(cls)
 
 @st.cache_resource(show_spinner=True)
-def load_mtl():
+def load_mtl() -> Tuple[Optional[Any], Optional[Any]]:
+    """Loads the Multi-Task Learning (MTL) model and tokenizer from the default directory.
+
+    This function attempts to load the model from 'models/mtl/mtl_model.pt' and the
+    tokenizer from 'models/mtl/base_tok'. It uses Streamlit's cache mechanism.
+
+    Returns:
+        Tuple[Optional[Any], Optional[Any]]: A tuple containing the tokenizer and the loaded model.
+        Returns (None, None) if loading fails or files are missing.
+    """
     mtl_model_path = os.path.join(MTL_DIR, "mtl_model.pt")
     base_tok_path = os.path.join(MTL_DIR, "base_tok")
     
@@ -317,7 +352,15 @@ SAMPLE_TEXTS = [
 mtl_available = False
 mtl_tok, mtl_mdl = None, None
 
-def check_mtl_availability(backbone):
+def check_mtl_availability(backbone: str) -> bool:
+    """Checks if the MTL model is available for the specified backbone.
+
+    Args:
+        backbone (str): The name of the backbone model (e.g., 'bertweet').
+
+    Returns:
+        bool: True if the MTL model files exist for the backbone, False otherwise.
+    """
     mtl_path = os.path.join(MTL_DIR, backbone)
     if not os.path.exists(mtl_path):
         return False
@@ -325,7 +368,14 @@ def check_mtl_availability(backbone):
     model_files = [f for f in os.listdir(mtl_path) if f.endswith('.pt') or f.endswith('.safetensors') or f.endswith('.bin')]
     return len(model_files) > 0
 
-def reload_mtl_for_backbone(backbone):
+def reload_mtl_for_backbone(backbone: str):
+    """Reloads the MTL model and tokenizer for a specific backbone.
+
+    Updates the global `mtl_tok`, `mtl_mdl`, and `mtl_available` variables.
+
+    Args:
+        backbone (str): The name of the backbone model to load.
+    """
     global mtl_tok, mtl_mdl, mtl_available
     if check_mtl_availability(backbone):
         mtl_tok, mtl_mdl = load_mtl_dir(os.path.join(MTL_DIR, backbone))
@@ -335,7 +385,20 @@ def reload_mtl_for_backbone(backbone):
         mtl_available = False
 
 @st.cache_resource(show_spinner=True)
-def load_models(backbone="bertweet"):
+def load_models(backbone: str = "bertweet") -> Tuple[Optional[Any], Optional[Any], Optional[Any], Optional[Any]]:
+    """Loads single-task sentiment and emotion models for the specified backbone.
+
+    Args:
+        backbone (str, optional): The backbone model name. Defaults to "bertweet".
+
+    Returns:
+        Tuple[Optional[Any], Optional[Any], Optional[Any], Optional[Any]]: A tuple containing:
+            - sentiment_tokenizer
+            - sentiment_model
+            - emotion_tokenizer
+            - emotion_model
+        Returns a tuple of Nones if loading fails.
+    """
     sentiment_path = os.path.join(SENTIMENT_BASE, backbone)
     emotion_path = os.path.join(EMOTION_BASE, backbone)
     
@@ -351,7 +414,23 @@ def load_models(backbone="bertweet"):
 
     return sent_tok, sent_mdl, emo_tok, emo_mdl
 
-def predict_single(model, tokenizer, text: str, labels: List[str], max_len=MAX_LEN):
+def predict_single(model, tokenizer, text: str, labels: List[str], max_len: int = MAX_LEN) -> Tuple[str, float, List[float], Dict[str, torch.Tensor]]:
+    """Makes a prediction using a single-task model.
+
+    Args:
+        model (torch.nn.Module): The classification model.
+        tokenizer (transformers.PreTrainedTokenizer): The tokenizer for the model.
+        text (str): The input text to classify.
+        labels (List[str]): The list of class labels.
+        max_len (int, optional): Maximum sequence length. Defaults to MAX_LEN.
+
+    Returns:
+        Tuple[str, float, List[float], Dict[str, torch.Tensor]]: A tuple containing:
+            - The predicted label.
+            - The confidence score of the prediction.
+            - A list of probabilities for all classes.
+            - The input encodings used for prediction.
+    """
     enc = tokenizer(text, return_tensors="pt", truncation=True, max_length=max_len)
     enc = {k: v.to(DEVICE) for k, v in enc.items()}
     with torch.no_grad():
@@ -403,7 +482,19 @@ def predict_single(model, tokenizer, text: str, labels: List[str], max_len=MAX_L
         
     return labels[idx], float(conf.item()), probs.tolist(), enc
 
-def predict_mtl(mtl_model, tokenizer, text: str):
+def predict_mtl(mtl_model, tokenizer, text: str) -> Tuple[str, float, List[float], Dict[str, torch.Tensor], str, float, List[float], Dict[str, torch.Tensor]]:
+    """Makes predictions using the Multi-Task Learning model for both sentiment and emotion.
+
+    Args:
+        mtl_model (torch.nn.Module): The MTL model.
+        tokenizer (transformers.PreTrainedTokenizer): The tokenizer.
+        text (str): The input text.
+
+    Returns:
+        Tuple: A tuple containing prediction results for sentiment and emotion:
+            (sentiment_label, sentiment_conf, sentiment_probs, input_encoding,
+             emotion_label, emotion_conf, emotion_probs, input_encoding)
+    """
     enc = tokenizer(text, return_tensors="pt", truncation=True, max_length=MAX_LEN)
     enc = {k: v.to(DEVICE) for k, v in enc.items()}
     
@@ -466,11 +557,34 @@ def predict_mtl(mtl_model, tokenizer, text: str):
         EMOTION_LABELS[e_idx], float(e_conf.item()), e_probs.cpu().tolist(), enc
     )
 
-def format_probs(labels, probs_list) -> Dict[str, float]:
+def format_probs(labels: List[str], probs_list: List[float]) -> Dict[str, float]:
+    """Formats a list of probabilities into a dictionary mapping labels to probabilities.
+
+    Args:
+        labels (List[str]): List of class labels.
+        probs_list (List[float]): List of probability scores.
+
+    Returns:
+        Dict[str, float]: Dictionary mapping labels to formatted probability strings (as floats).
+    """
     return {lbl: float(f"{p:.4f}") for lbl, p in zip(labels, probs_list)}
 
 
 def tokens_and_embeds(model, tokenizer, enc):
+    """Extracts tokens and creates a forward function for embeddings.
+
+    Args:
+        model (torch.nn.Module): The model.
+        tokenizer (transformers.PreTrainedTokenizer): The tokenizer.
+        enc (Dict[str, torch.Tensor]): The input encodings.
+
+    Returns:
+        Tuple: A tuple containing:
+            - tokens (List[str]): The input tokens.
+            - attention_mask (torch.Tensor): The attention mask.
+            - input_ids (torch.Tensor): The input IDs.
+            - forward_embeds (Callable): A function that takes embeddings and returns logits.
+    """
     input_ids = enc["input_ids"]
     attention_mask = enc.get("attention_mask", None)
     tokens = tokenizer.convert_ids_to_tokens(input_ids[0].cpu().tolist())
@@ -482,7 +596,20 @@ def tokens_and_embeds(model, tokenizer, enc):
     return tokens, attention_mask, input_ids, forward_embeds
 
 
-def attribution_scores(model, tokenizer, enc, target_idx: int, real_ig: bool, head=None):
+def attribution_scores(model, tokenizer, enc, target_idx: int, real_ig: bool, head=None) -> List[float]:
+    """Calculates attribution scores for input tokens using Integrated Gradients or Gradient saliency.
+
+    Args:
+        model (torch.nn.Module): The model to explain.
+        tokenizer (transformers.PreTrainedTokenizer): The tokenizer.
+        enc (Dict[str, torch.Tensor]): The input encodings.
+        target_idx (int): The index of the target class to explain.
+        real_ig (bool): Whether to use true Integrated Gradients (requires Captum).
+        head (str, optional): The head to explain for MTL models ('sent' or 'emo'). Defaults to None.
+
+    Returns:
+        List[float]: A list of attribution scores for each token, normalized to [0, 1].
+    """
     input_ids = enc["input_ids"]
     attention_mask = enc.get("attention_mask", None)
     token_count = input_ids.shape[1]
@@ -557,6 +684,15 @@ def attribution_scores(model, tokenizer, enc, target_idx: int, real_ig: bool, he
 from typing import List
 
 def html_highlight(tokens: List[str], scores: List[float]) -> str:
+    """Generates HTML for highlighting text based on attribution scores.
+
+    Args:
+        tokens (List[str]): The list of tokens.
+        scores (List[float]): The attribution scores corresponding to tokens.
+
+    Returns:
+        str: An HTML string with highlighted tokens.
+    """
     chunks = []
     skip = {"<s>", "</s>", "[CLS]", "[SEP]", "[PAD]"}
     for tok, s in zip(tokens, scores):
@@ -572,7 +708,16 @@ def html_highlight(tokens: List[str], scores: List[float]) -> str:
         )
     return "<div style='line-height:2; font-family: ui-sans-serif, system-ui, -apple-system'>" + " ".join(chunks) + "</div>"
 
-def resolve_paths(mode: str, bk: str):
+def resolve_paths(mode: str, bk: str) -> Dict[str, str]:
+    """Resolves model paths based on the selected mode and backbone.
+
+    Args:
+        mode (str): The analysis mode ("Single-task" or "Multi-task").
+        bk (str): The backbone name (e.g., "bertweet").
+
+    Returns:
+        Dict[str, str]: A dictionary containing model paths and mode identifier.
+    """
     if mode == "Single-task":
         sent_path = os.path.join("models", "sentiment", bk)
         emo_path  = os.path.join("models", "emotion", bk)
@@ -581,7 +726,16 @@ def resolve_paths(mode: str, bk: str):
         mtl_path = os.path.join("models", "mtl", bk)
         return {"mode": "mtl", "mtl": mtl_path}
 
-def load_single_task(model_path):
+def load_single_task(model_path: str) -> Tuple[Optional[Any], Optional[Any]]:
+    """Loads a single-task model and tokenizer from the specified path.
+
+    Args:
+        model_path (str): The directory path containing the model.
+
+    Returns:
+        Tuple[Optional[Any], Optional[Any]]: A tuple containing the tokenizer and model.
+        Returns (None, None) if loading fails.
+    """
     try:
         config_path = os.path.join(model_path, "config.json")
         is_custom_bertweet = False
@@ -633,7 +787,18 @@ def load_single_task(model_path):
         st.error(f"Failed to load model from {model_path}: {str(e)}")
         return None, None
 
-def load_mtl_dir(mtl_path):
+def load_mtl_dir(mtl_path: str) -> Tuple[Optional[Any], Optional[Any]]:
+    """Loads an MTL model and tokenizer from a specific directory.
+
+    Handles different model formats (safetensors, bin, pt) and configurations.
+
+    Args:
+        mtl_path (str): The directory path containing the MTL model.
+
+    Returns:
+        Tuple[Optional[Any], Optional[Any]]: A tuple containing the tokenizer and model.
+        Returns (None, None) if loading fails.
+    """
     try:
         if not os.path.exists(mtl_path):
             return None, None
@@ -732,7 +897,18 @@ def load_mtl_dir(mtl_path):
 # Initialize with default backbone
 sentiment_tok, sentiment_mdl, emotion_tok, emotion_mdl = load_models("bertweet")
 
-def ensure_mtl(backbone: str):
+def ensure_mtl(backbone: str) -> Tuple[bool, Optional[Any], Optional[Any]]:
+    """Ensures that the MTL model for the given backbone is loaded.
+
+    Args:
+        backbone (str): The backbone name.
+
+    Returns:
+        Tuple[bool, Optional[Any], Optional[Any]]: A tuple containing:
+            - success (bool): Whether the model was successfully loaded.
+            - tokenizer: The loaded tokenizer.
+            - model: The loaded model.
+    """
     tok, mdl = load_mtl_dir(os.path.join(MTL_DIR, backbone))
     ok = tok is not None and mdl is not None
     return ok, tok, mdl
@@ -752,7 +928,18 @@ STOPWORDS = {
     ".",",","!","?","’","'","”","“","(",")","-","—","…"
 }
 
-def _aggregate_word_scores(tokens, scores):
+def _aggregate_word_scores(tokens: List[str], scores: List[float]) -> List[Tuple[str, float]]:
+    """Aggregates token-level scores into word-level scores.
+
+    Handles subword tokenization artifacts (e.g., '##' in BERT, 'Ġ' in RoBERTa).
+
+    Args:
+        tokens (List[str]): List of subword tokens.
+        scores (List[float]): List of scores for each token.
+
+    Returns:
+        List[Tuple[str, float]]: A list of (word, score) tuples.
+    """
     words, word_scores = [], []
     cur_word, cur_scores = "", []
     wp_open = False   # WordPiece continuation (##)
@@ -826,8 +1013,19 @@ def _aggregate_word_scores(tokens, scores):
     return cleaned
 
 
-def top_k_contributors(tokens, scores, k=3, min_score=0.07, content_only=True):
+def top_k_contributors(tokens: List[str], scores: List[float], k: int = 3, min_score: float = 0.07, content_only: bool = True) -> List[Tuple[str, float]]:
+    """Identifies the top-k contributing words based on attribution scores.
 
+    Args:
+        tokens (List[str]): List of input tokens.
+        scores (List[float]): List of attribution scores.
+        k (int, optional): Number of top contributors to return. Defaults to 3.
+        min_score (float, optional): Minimum score threshold. Defaults to 0.07.
+        content_only (bool, optional): Whether to exclude stopwords. Defaults to True.
+
+    Returns:
+        List[Tuple[str, float]]: List of (word, score) tuples for top contributors.
+    """
     agg = _aggregate_word_scores(tokens, scores)
     out = []
     for w, sc in agg:
@@ -839,14 +1037,31 @@ def top_k_contributors(tokens, scores, k=3, min_score=0.07, content_only=True):
     return out[:k]
 
 
-def rationale_sentence(label, top_words):
+def rationale_sentence(label: str, top_words: List[Tuple[str, float]]) -> str:
+    """Constructs a natural language sentence explaining the prediction.
+
+    Args:
+        label (str): The predicted label.
+        top_words (List[Tuple[str, float]]): The top contributing words.
+
+    Returns:
+        str: An explanatory sentence.
+    """
     if not top_words:
         return f"The model predicted **{label}**."
     terms = ", ".join([w for w, _ in top_words[:3]])
     return f"The model predicted **{label}** mainly due to: *{terms}*."
 
 
-def render_chips(pairs):
+def render_chips(pairs: List[Tuple[str, float]]) -> str:
+    """Renders top words as HTML chips.
+
+    Args:
+        pairs (List[Tuple[str, float]]): List of (word, score) tuples.
+
+    Returns:
+        str: HTML string representing the chips.
+    """
     """Nice inline chips for top words."""
     if not pairs:
         return ""
@@ -859,16 +1074,49 @@ def render_chips(pairs):
         )
     return "<div>" + " ".join(chips) + "</div>"
 
-def drop_word_once(text, word):
+def drop_word_once(text: str, word: str) -> str:
+    """Removes the first occurrence of a word from the text (case-insensitive).
+
+    Args:
+        text (str): The original text.
+        word (str): The word to remove.
+
+    Returns:
+        str: The modified text.
+    """
     # remove one occurrence case-insensitively (simple heuristic)
     import re
     return re.sub(rf'\b{re.escape(word)}\b', '', text, count=1, flags=re.IGNORECASE).replace("  ", " ").strip()
 
-def counterfactual_delta(predict_fn, tokenizer, model, text, label_list, chosen_label):
+def counterfactual_delta(predict_fn, tokenizer, model, text: str, label_list: List[str], chosen_label: str):
+    """Calculates the prediction change when a word is removed (Counterfactual Analysis).
+
+    Args:
+        predict_fn (Callable): The prediction function to use.
+        tokenizer: The tokenizer.
+        model: The model.
+        text (str): The input text.
+        label_list (List[str]): List of possible labels.
+        chosen_label (str): The label of interest (unused in current implementation, but kept for signature).
+
+    Returns:
+        Tuple: The new label and confidence after modification.
+    """
     base_label, base_conf, _, _ = predict_fn(model, tokenizer, text, label_list)
     return base_label, base_conf
 
-def create_result_card(label, confidence, probs, label_type="sentiment"):
+def create_result_card(label: str, confidence: float, probs: List[float], label_type: str = "sentiment") -> str:
+    """Creates an HTML card to display the prediction result.
+
+    Args:
+        label (str): The predicted label.
+        confidence (float): The confidence score.
+        probs (List[float]): The list of probabilities (unused in display but part of signature).
+        label_type (str, optional): The type of label ("sentiment" or "emotion"). Defaults to "sentiment".
+
+    Returns:
+        str: HTML string for the result card.
+    """
     emoji = SENTIMENT_EMOJIS.get(label, "🤔") if label_type == "sentiment" else EMOTION_EMOJIS.get(label, "🤔")
     
     if label_type == "sentiment":
@@ -899,7 +1147,15 @@ def create_result_card(label, confidence, probs, label_type="sentiment"):
     
     return card_html.strip()
 
-def create_explanation_chips(top_words):
+def create_explanation_chips(top_words: List[Tuple[str, float]]) -> str:
+    """Creates HTML chips for explanation visualization.
+
+    Args:
+        top_words (List[Tuple[str, float]]): List of (word, score) tuples.
+
+    Returns:
+        str: HTML string for the chips.
+    """
     if not top_words:
         return ""
     parts = ['<div class="explanation-chips">']
@@ -909,6 +1165,17 @@ def create_explanation_chips(top_words):
     return "".join(parts)
 
 def enhanced_html_highlight(tokens: List[str], scores: List[float]) -> str:
+    """Generates an enhanced HTML heatmap for token importance.
+
+    Uses a color gradient from blue (low importance) to red (high importance).
+
+    Args:
+        tokens (List[str]): List of tokens.
+        scores (List[float]): List of attribution scores.
+
+    Returns:
+        str: HTML string for the heatmap.
+    """
     chunks = []
     skip = {"<s>", "</s>", "[CLS]", "[SEP]", "[PAD]"}
     
@@ -980,6 +1247,11 @@ def enhanced_html_highlight(tokens: List[str], scores: List[float]) -> str:
     return f'<div class="token-heatmap">{"".join(chunks)}</div>'
 
 def create_importance_legend() -> str:
+    """Creates an HTML legend for the importance heatmap.
+
+    Returns:
+        str: HTML string for the legend.
+    """
     return """
     <div style="margin: 10px 0; padding: 15px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef;">
         <div style="font-weight: 600; margin-bottom: 10px; color: #495057;">🎨 Token Importance Legend:</div>
@@ -1000,7 +1272,15 @@ def create_importance_legend() -> str:
     </div>
     """
 
-def display_colored_probability_chart(labels, probs_list, chart_type="sentiment", title="Probability Distribution"):
+def display_colored_probability_chart(labels: List[str], probs_list: List[float], chart_type: str = "sentiment", title: str = "Probability Distribution"):
+    """Displays a colored bar chart of probabilities using Plotly.
+
+    Args:
+        labels (List[str]): List of class labels.
+        probs_list (List[float]): List of probabilities.
+        chart_type (str, optional): Type of chart ("sentiment" or "emotion") for coloring. Defaults to "sentiment".
+        title (str, optional): Title of the chart. Defaults to "Probability Distribution".
+    """
     try:
         import plotly.express as px
         import pandas as pd
@@ -1102,6 +1382,10 @@ def display_colored_probability_chart(labels, probs_list, chart_type="sentiment"
             st.error(f"Fallback chart also failed: {str(fallback_error)}")
 
 def show_sample_texts():
+    """Displays a list of sample texts as buttons for quick testing.
+
+    When a button is clicked, updates the 'sample_text' in session state.
+    """
     st.markdown("### 💡 Try these sample texts:")
     
     cols = st.columns(2)
