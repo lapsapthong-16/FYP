@@ -218,9 +218,11 @@ Key files:
 | `annotated_reddit_posts.csv` | Labelled Reddit examples with sentiment and emotion columns. |
 | `explainability_results_single_task/` | Saved XAI metric outputs. |
 
-## Demo / Screenshots
+## Visual Paper Explanation
 
-`README.html` contains a generated visual research explainer page for the project.
+For a visual explanation of the paper and research workflow, refer to [`README.html`](README.html). It is a reader-facing visual explainer, not the application demo.
+
+## Demo / Screenshots
 
 Add Streamlit screenshots or a hosted demo link here after the trained model artifacts and app deployment are finalised.
 
