@@ -220,6 +220,10 @@ Key files:
 
 ## Visual Paper Explanation
 
+![AI crisis sentiment and emotion analyzer concept](assets/ai-crisis-sentiment-emotion-analyzer-readme-illustrations/01-crisis-sentiment-emotion-evidence-scale.png)
+
+This illustration summarizes the paper concept: noisy crisis Reddit text is weighed into sentiment and emotion predictions, while token evidence exposes the words that influenced the model.
+
 For a visual explanation of the paper and research workflow, refer to [`README.html`](README.html). It is a reader-facing visual explainer, not the application demo.
 
 ## Demo / Screenshots
