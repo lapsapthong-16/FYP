@@ -34,6 +34,19 @@ The project builds a research pipeline around transformer-based text classificat
 - Captum-based attribution and gradient fallback logic expose important tokens for a prediction.
 - A Streamlit app lets users enter text, choose model mode/backbone, view probability distributions, and inspect explanations.
 
+## Training Pipeline Overview
+
+For a hiring-manager-friendly explanation of how the model was built from beginning to end, open [`model-training-pipeline.html`](model-training-pipeline.html).
+
+It explains:
+
+- Where the Reddit crisis data came from and how it was cleaned.
+- Which general datasets were used for sentiment and emotion learning.
+- How the train, validation, and test split was created.
+- How stratification, cross-validation, random seeds, and t-tests were used to check reliability.
+- How BERTweet and DistilRoBERTa were fine-tuned, tuned, validated, and compared.
+- What the final general-dataset and Reddit-domain results showed.
+
 ## Product Concept
 
 This is a research-facing crisis intelligence prototype rather than a production monitoring system.
@@ -178,6 +191,7 @@ If the app stops with a model loading error, add the trained model artifacts und
 ├── app.py
 ├── requirements.txt
 ├── README.html
+├── model-training-pipeline.html
 ├── annotated_reddit_posts.csv
 ├── data/
 │   ├── reddit-posts-*.json
@@ -207,6 +221,7 @@ Key files:
 | File | Purpose |
 | --- | --- |
 | `app.py` | Streamlit inference demo with model selection, prediction cards, probability charts, and token attribution. |
+| `model-training-pipeline.html` | Visual "how I did it" artifact explaining the complete model training, validation, tuning, stability, and final testing workflow. |
 | `data-collect.ipynb` | Collects crisis-related Reddit data. |
 | `data-preprocess.ipynb` | Cleans Reddit text and prepares CSV data for modelling. |
 | `bertweet.ipynb` | BERTweet training and experiment workflow. |
@@ -225,6 +240,8 @@ Key files:
 This illustration summarizes the paper concept: noisy crisis Reddit text is weighed into sentiment and emotion predictions, while token evidence exposes the words that influenced the model.
 
 For a visual explanation of the paper and research workflow, refer to [`README.html`](README.html). It is a reader-facing visual explainer, not the application demo.
+
+For a practical build explanation, refer to [`model-training-pipeline.html`](model-training-pipeline.html). It focuses on how the data, splits, training, validation, tuning, stability checks, and final results were produced.
 
 ## Demo / Screenshots
 

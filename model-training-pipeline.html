@@ -1,0 +1,970 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Model Training Pipeline | Crisis Sentiment and Emotion Analyzer</title>
+  <style>
+    :root {
+      --paper: #f4f0e6;
+      --ink: #111916;
+      --muted: #526057;
+      --line: #1f2b25;
+      --deep: #0c211b;
+      --panel: #fffaf0;
+      --panel-2: #e8efe2;
+      --green: #0e6b4f;
+      --acid: #c7df3f;
+      --rust: #b2492f;
+      --blue: #1f5f82;
+      --shadow: 10px 10px 0 #111916;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(90deg, rgba(17,25,22,.06) 1px, transparent 1px),
+        linear-gradient(rgba(17,25,22,.05) 1px, transparent 1px),
+        radial-gradient(circle at 78% 12%, rgba(199,223,63,.34), transparent 22rem),
+        radial-gradient(circle at 10% 80%, rgba(31,95,130,.18), transparent 24rem),
+        var(--paper);
+      background-size: 26px 26px, 26px 26px, auto, auto, auto;
+      font-family: "Avenir Next", "Trebuchet MS", Verdana, sans-serif;
+      line-height: 1.45;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: .28;
+      background-image: repeating-linear-gradient(-3deg, transparent 0 7px, rgba(17,25,22,.08) 8px);
+      mix-blend-mode: multiply;
+    }
+
+    a { color: inherit; }
+
+    .wrap {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      position: relative;
+      z-index: 1;
+    }
+
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      border-bottom: 2px solid var(--ink);
+      background: rgba(244,240,230,.92);
+      backdrop-filter: blur(14px);
+    }
+
+    .nav-inner {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 12px 0;
+    }
+
+    .brand {
+      font-family: Georgia, "Times New Roman", serif;
+      font-weight: 900;
+      font-size: .98rem;
+      letter-spacing: -.02em;
+    }
+
+    .nav-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+
+    .nav-links a {
+      text-decoration: none;
+      border: 1px solid var(--ink);
+      padding: 6px 9px;
+      font-size: .76rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      background: var(--panel);
+    }
+
+    .hero {
+      min-height: 88vh;
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(320px, .78fr);
+      gap: clamp(28px, 5vw, 72px);
+      align-items: center;
+      padding: 64px 0 52px;
+      border-bottom: 3px solid var(--ink);
+    }
+
+    .kicker {
+      display: inline-flex;
+      border: 2px solid var(--ink);
+      background: var(--acid);
+      padding: 8px 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .09em;
+      font-size: .78rem;
+      box-shadow: 5px 5px 0 var(--ink);
+      margin-bottom: 22px;
+    }
+
+    h1, h2, h3 { margin: 0; }
+
+    h1 {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(3.6rem, 8vw, 8.6rem);
+      line-height: .84;
+      letter-spacing: -.07em;
+      max-width: 780px;
+    }
+
+    .deck {
+      margin: 28px 0 0;
+      max-width: 690px;
+      font-size: clamp(1.05rem, 1.7vw, 1.34rem);
+      color: #25352e;
+    }
+
+    .hero-panel {
+      border: 3px solid var(--ink);
+      background: var(--deep);
+      color: var(--paper);
+      box-shadow: var(--shadow);
+      transform: rotate(1deg);
+      padding: 24px;
+      min-height: 520px;
+      display: grid;
+      align-content: space-between;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-panel::after {
+      content: "";
+      position: absolute;
+      inset: auto -30px 22px auto;
+      width: 210px;
+      height: 210px;
+      border: 2px solid rgba(244,240,230,.32);
+      transform: rotate(18deg);
+    }
+
+    .stamp {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 4.4rem;
+      line-height: .84;
+      letter-spacing: -.06em;
+      position: relative;
+      z-index: 1;
+    }
+
+    .mini-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .mini-card {
+      border: 1px solid rgba(244,240,230,.38);
+      padding: 13px;
+      background: rgba(255,255,255,.05);
+    }
+
+    .mini-card b {
+      display: block;
+      color: var(--acid);
+      font-size: 1.7rem;
+      line-height: 1;
+    }
+
+    .mini-card span {
+      display: block;
+      margin-top: 8px;
+      color: rgba(244,240,230,.8);
+      font-size: .86rem;
+    }
+
+    section {
+      padding: 58px 0;
+      border-bottom: 2px solid rgba(17,25,22,.28);
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, .42fr) minmax(0, .9fr);
+      gap: 28px;
+      align-items: end;
+      margin-bottom: 24px;
+    }
+
+    .eyebrow {
+      font-weight: 900;
+      color: var(--green);
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      font-size: .78rem;
+    }
+
+    h2 {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(2rem, 4vw, 4.7rem);
+      line-height: .92;
+      letter-spacing: -.055em;
+    }
+
+    .short {
+      color: var(--muted);
+      font-size: 1.02rem;
+      max-width: 680px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+
+    .grid.two { grid-template-columns: repeat(2, 1fr); }
+    .grid.four { grid-template-columns: repeat(4, 1fr); }
+
+    .card {
+      border: 2px solid var(--ink);
+      background: var(--panel);
+      padding: 18px;
+      box-shadow: 5px 5px 0 rgba(17,25,22,.88);
+    }
+
+    .card.alt { background: var(--panel-2); }
+    .card.dark { background: var(--deep); color: var(--paper); }
+
+    .card h3 {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 1.45rem;
+      line-height: 1;
+      letter-spacing: -.035em;
+      margin-bottom: 12px;
+    }
+
+    .card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: .95rem;
+    }
+
+    .card.dark p { color: rgba(244,240,230,.76); }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-top: 14px;
+    }
+
+    .tag {
+      border: 1px solid var(--ink);
+      background: white;
+      padding: 5px 7px;
+      font-size: .76rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    .dark .tag {
+      color: var(--ink);
+      border-color: var(--paper);
+    }
+
+    .flow {
+      display: grid;
+      gap: 12px;
+      counter-reset: step;
+    }
+
+    .step {
+      counter-increment: step;
+      display: grid;
+      grid-template-columns: 76px minmax(0, 1fr) minmax(220px, .36fr);
+      gap: 16px;
+      align-items: stretch;
+      border: 2px solid var(--ink);
+      background: var(--panel);
+      box-shadow: 5px 5px 0 rgba(17,25,22,.88);
+    }
+
+    .step-num {
+      display: grid;
+      place-items: center;
+      border-right: 2px solid var(--ink);
+      background: var(--acid);
+      font-weight: 900;
+      font-size: 1.4rem;
+    }
+
+    .step-num::before { content: counter(step, decimal-leading-zero); }
+
+    .step-main { padding: 16px 0; }
+
+    .step-main h3 {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 1.45rem;
+      letter-spacing: -.03em;
+      margin-bottom: 6px;
+    }
+
+    .step-main p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .step-side {
+      border-left: 2px solid var(--ink);
+      padding: 16px;
+      background: rgba(14,107,79,.09);
+      font-size: .9rem;
+      color: #26352e;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 2px solid var(--ink);
+      background: var(--panel);
+      box-shadow: 5px 5px 0 rgba(17,25,22,.88);
+      overflow: hidden;
+    }
+
+    th, td {
+      border: 1px solid rgba(17,25,22,.34);
+      padding: 11px 12px;
+      text-align: left;
+      vertical-align: top;
+      font-size: .92rem;
+    }
+
+    th {
+      background: var(--deep);
+      color: var(--paper);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      font-size: .75rem;
+    }
+
+    td b { color: var(--green); }
+
+    .metric {
+      border: 2px solid var(--ink);
+      background: var(--panel);
+      padding: 16px;
+      min-height: 154px;
+      box-shadow: 5px 5px 0 rgba(17,25,22,.88);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .metric::after {
+      content: "";
+      position: absolute;
+      inset: auto 0 0 0;
+      height: 8px;
+      background: var(--tone, var(--green));
+    }
+
+    .metric small {
+      display: block;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .09em;
+      color: var(--muted);
+      min-height: 32px;
+    }
+
+    .metric b {
+      display: block;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 2.45rem;
+      line-height: .9;
+      letter-spacing: -.06em;
+      margin: 12px 0 8px;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: .9rem;
+    }
+
+    .note {
+      border-left: 8px solid var(--rust);
+      background: #fff7df;
+      padding: 14px 16px;
+      margin-top: 18px;
+      font-size: .95rem;
+      color: #3c3327;
+    }
+
+    .split-diagram {
+      display: grid;
+      grid-template-columns: 7fr 1.5fr 1.5fr;
+      border: 2px solid var(--ink);
+      box-shadow: 5px 5px 0 rgba(17,25,22,.88);
+      overflow: hidden;
+      min-height: 88px;
+    }
+
+    .split-piece {
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 18px 10px;
+      border-right: 2px solid var(--ink);
+      font-weight: 900;
+    }
+
+    .split-piece:last-child { border-right: 0; }
+    .train { background: var(--green); color: var(--paper); }
+    .val { background: var(--acid); }
+    .test { background: var(--blue); color: var(--paper); }
+
+    .foot {
+      padding: 34px 0 48px;
+      color: var(--muted);
+      font-size: .92rem;
+    }
+
+    @media (max-width: 900px) {
+      .hero,
+      .section-head,
+      .grid,
+      .grid.two,
+      .grid.four {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-panel { min-height: 420px; transform: none; }
+      .step { grid-template-columns: 58px 1fr; }
+      .step-side {
+        grid-column: 1 / -1;
+        border-left: 0;
+        border-top: 2px solid var(--ink);
+      }
+      .nav-inner { align-items: flex-start; flex-direction: column; }
+      .split-diagram { grid-template-columns: 1fr; }
+      .split-piece { border-right: 0; border-bottom: 2px solid var(--ink); }
+      .split-piece:last-child { border-bottom: 0; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav" aria-label="Page navigation">
+    <div class="nav-inner">
+      <div class="brand">Crisis NLP Training Pipeline</div>
+      <div class="nav-links">
+        <a href="#source">Data</a>
+        <a href="#split">Split</a>
+        <a href="#training">Training</a>
+        <a href="#validation">Validation</a>
+        <a href="#results">Results</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="wrap">
+    <header class="hero">
+      <div>
+        <div class="kicker">How I Built It</div>
+        <h1>From Reddit crisis text to tested transformer models.</h1>
+        <p class="deck">
+          This page explains the actual model training pipeline: where the data came from,
+          how it was split, which benchmark datasets were used, how models were fine-tuned,
+          and how results were checked for stability.
+        </p>
+      </div>
+
+      <aside class="hero-panel" aria-label="Pipeline summary">
+        <div class="stamp">One pipeline. Two tasks. Two backbones.</div>
+        <div class="mini-grid">
+          <div class="mini-card"><b>329</b><span>cleaned Reddit rows in the current repo snapshot</span></div>
+          <div class="mini-card"><b>70/15/15</b><span>stratified train, validation, test split</span></div>
+          <div class="mini-card"><b>5 seeds</b><span>random-seed stability checks</span></div>
+          <div class="mini-card"><b>2 models</b><span>BERTweet and DistilRoBERTa compared</span></div>
+        </div>
+      </aside>
+    </header>
+
+    <section id="source">
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">01 / Source</div>
+          <h2>Where the data came from.</h2>
+        </div>
+        <p class="short">
+          I combined domain-specific Reddit crisis data with general benchmark datasets so the
+          models could learn broad sentiment and emotion patterns, then be checked against the
+          Samsung Note 7 crisis domain.
+        </p>
+      </div>
+
+      <div class="grid">
+        <article class="card">
+          <h3>Reddit crisis data</h3>
+          <p>Collected from <b>r/samsung</b> with Reddit API tooling through PRAW. The topic was the Samsung Galaxy Note 7 recall, overheating, fire, refund, replacement, and customer-service crisis.</p>
+          <div class="tag-row">
+            <span class="tag">PRAW</span>
+            <span class="tag">r/samsung</span>
+            <span class="tag">Note 7</span>
+          </div>
+        </article>
+
+        <article class="card alt">
+          <h3>General sentiment data</h3>
+          <p>Used <b>SST-2</b> from Hugging Face Datasets for sentiment training and validation. It provided a clean benchmark for negative/positive sentiment learning.</p>
+          <div class="tag-row">
+            <span class="tag">SST-2</span>
+            <span class="tag">Hugging Face</span>
+          </div>
+        </article>
+
+        <article class="card">
+          <h3>General emotion data</h3>
+          <p>Used <b>GoEmotions simplified</b> for emotion classification. Labels were mapped into six project classes: anger, fear, joy, sadness, surprise, and no emotion.</p>
+          <div class="tag-row">
+            <span class="tag">GoEmotions</span>
+            <span class="tag">6 classes</span>
+          </div>
+        </article>
+      </div>
+
+      <div class="note">
+        Reddit collection used 11 targeted queries such as "Galaxy Note 7 recall", "Note 7 battery fire",
+        "Note 7 explosion", "Note 7 refund", "Note 7 replacement", and "Note 7 overheating".
+        The repo snapshot contains 329 cleaned rows and 329 annotated rows.
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">02 / Cleaning</div>
+          <h2>How raw Reddit text became model-ready data.</h2>
+        </div>
+        <p class="short">
+          The goal was to keep the crisis meaning while removing noise that would distract the model.
+          Usernames and formatting were normalized instead of letting the model memorize identifiers.
+        </p>
+      </div>
+
+      <div class="flow">
+        <div class="step">
+          <div class="step-num"></div>
+          <div class="step-main">
+            <h3>Collect and flatten</h3>
+            <p>Posts and selected comments were collected, deduplicated, then flattened into JSON/CSV rows.</p>
+          </div>
+          <div class="step-side">Files: <b>data-collect.ipynb</b>, <b>flat*.json</b>, <b>combined_y_labeled_data.json</b></div>
+        </div>
+
+        <div class="step">
+          <div class="step-num"></div>
+          <div class="step-main">
+            <h3>Filter for usable crisis text</h3>
+            <p>English text and subjective crisis discussion were prioritized. Low-subjectivity content was filtered out during collection.</p>
+          </div>
+          <div class="step-side">Filters: English check, TextBlob subjectivity threshold around 0.4</div>
+        </div>
+
+        <div class="step">
+          <div class="step-num"></div>
+          <div class="step-main">
+            <h3>Normalize noisy social text</h3>
+            <p>URLs, HTML, Reddit formatting, mentions, extra whitespace, and identifiers were cleaned or anonymized.</p>
+          </div>
+          <div class="step-side">Output: <b>data/cleaned_reddit_posts.csv</b></div>
+        </div>
+
+        <div class="step">
+          <div class="step-num"></div>
+          <div class="step-main">
+            <h3>Add task labels</h3>
+            <p>The annotated data contains both sentiment and emotion labels for the same crisis-domain examples.</p>
+          </div>
+          <div class="step-side">Output: <b>annotated_reddit_posts.csv</b></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="split">
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">03 / Split</div>
+          <h2>How I split the data.</h2>
+        </div>
+        <p class="short">
+          The main training notebooks used a reproducible two-stage split. The important part:
+          both split stages used stratification, so each subset kept a similar label balance.
+        </p>
+      </div>
+
+      <div class="split-diagram" aria-label="70 15 15 split">
+        <div class="split-piece train">70%<br>Train</div>
+        <div class="split-piece val">15%<br>Validation</div>
+        <div class="split-piece test">15%<br>Test</div>
+      </div>
+
+      <div class="grid two" style="margin-top: 18px;">
+        <article class="card">
+          <h3>Stage 1</h3>
+          <p><b>train_test_split(..., test_size=0.3, random_state=42, stratify=labels)</b><br>Kept 70% for training and set aside 30% as a temporary holdout.</p>
+        </article>
+        <article class="card alt">
+          <h3>Stage 2</h3>
+          <p><b>train_test_split(..., test_size=0.5, random_state=42, stratify=temp_labels)</b><br>Split the 30% holdout into validation and test sets of equal size.</p>
+        </article>
+      </div>
+
+      <table style="margin-top: 20px;">
+        <thead>
+          <tr>
+            <th>Subset</th>
+            <th>What it was used for</th>
+            <th>Why it mattered</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>Training</b></td>
+            <td>Fine-tuned transformer weights.</td>
+            <td>The only split used for gradient updates.</td>
+          </tr>
+          <tr>
+            <td><b>Validation</b></td>
+            <td>Tracked loss, accuracy, and macro-F1 after epochs.</td>
+            <td>Used for model selection and hyperparameter tuning.</td>
+          </tr>
+          <tr>
+            <td><b>Test</b></td>
+            <td>Final held-out evaluation.</td>
+            <td>Kept separate from training decisions.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="note">
+        Cross-validation used shuffled KFold, not StratifiedKFold. So the normal train/validation/test
+        split was stratified; the cross-validation folds were shuffled and reproducible, but not explicitly stratified.
+      </div>
+    </section>
+
+    <section id="training">
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">04 / Training</div>
+          <h2>How the models were trained.</h2>
+        </div>
+        <p class="short">
+          I did not train language models from zero. I fine-tuned pretrained transformer encoders
+          for the project tasks, then compared single-task and multi-task setups.
+        </p>
+      </div>
+
+      <div class="grid two">
+        <article class="card dark">
+          <h3>BERTweet</h3>
+          <p>Backbone: <b>vinai/bertweet-base</b>. Chosen because crisis discussion is social-media text with usernames, informal grammar, complaints, and short comments.</p>
+          <div class="tag-row">
+            <span class="tag">Social text</span>
+            <span class="tag">Transformer</span>
+          </div>
+        </article>
+
+        <article class="card dark">
+          <h3>DistilRoBERTa</h3>
+          <p>Backbone: <b>distilroberta-base</b>. Used as a compact general transformer baseline to compare against BERTweet.</p>
+          <div class="tag-row">
+            <span class="tag">General NLP</span>
+            <span class="tag">Lighter model</span>
+          </div>
+        </article>
+      </div>
+
+      <div class="grid" style="margin-top: 18px;">
+        <article class="card">
+          <h3>Single-task sentiment</h3>
+          <p>One transformer encoder with one classifier head for sentiment prediction.</p>
+          <div class="tag-row">
+            <span class="tag">Negative</span>
+            <span class="tag">Neutral</span>
+            <span class="tag">Positive</span>
+          </div>
+        </article>
+
+        <article class="card alt">
+          <h3>Single-task emotion</h3>
+          <p>One transformer encoder with one classifier head for emotion prediction.</p>
+          <div class="tag-row">
+            <span class="tag">Anger</span>
+            <span class="tag">Fear</span>
+            <span class="tag">Joy</span>
+            <span class="tag">Sadness</span>
+            <span class="tag">Surprise</span>
+            <span class="tag">No emotion</span>
+          </div>
+        </article>
+
+        <article class="card">
+          <h3>Multi-task model</h3>
+          <p>Shared transformer encoder with separate sentiment and emotion heads. The loss used task weighting through alpha.</p>
+          <div class="tag-row">
+            <span class="tag">Shared encoder</span>
+            <span class="tag">Two heads</span>
+          </div>
+        </article>
+      </div>
+
+      <table style="margin-top: 20px;">
+        <thead>
+          <tr>
+            <th>Training component</th>
+            <th>What I used</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Framework</td><td>PyTorch custom training loops</td></tr>
+          <tr><td>Model loading</td><td>Hugging Face Transformers: AutoTokenizer, AutoModel, AutoConfig</td></tr>
+          <tr><td>Optimizer</td><td>AdamW</td></tr>
+          <tr><td>Loss</td><td>CrossEntropyLoss</td></tr>
+          <tr><td>Scheduler</td><td>Linear schedule with warmup</td></tr>
+          <tr><td>Regularization</td><td>Dropout, weight decay, gradient clipping</td></tr>
+          <tr><td>Sequence length</td><td>Max length 128 tokens</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">05 / Tuning</div>
+          <h2>How I tuned the models.</h2>
+        </div>
+        <p class="short">
+          Tuning searched for settings that improved validation macro-F1, because macro-F1 is more
+          honest than accuracy when classes are imbalanced.
+        </p>
+      </div>
+
+      <div class="grid four">
+        <div class="metric" style="--tone: var(--green);">
+          <small>Learning rate</small>
+          <b>2e-5 to 1e-4</b>
+          <span>searched on log scale in tuning notebooks</span>
+        </div>
+        <div class="metric" style="--tone: var(--blue);">
+          <small>Batch size</small>
+          <b>16 / 32</b>
+          <span>with smaller batches for heavier multi-task passes</span>
+        </div>
+        <div class="metric" style="--tone: var(--rust);">
+          <small>Dropout</small>
+          <b>0.1 to 0.3</b>
+          <span>hidden and classifier dropout tuned</span>
+        </div>
+        <div class="metric" style="--tone: var(--acid);">
+          <small>Multi-task alpha</small>
+          <b>task weight</b>
+          <span>used to balance sentiment and emotion loss</span>
+        </div>
+      </div>
+
+      <div class="note">
+        I tuned on general datasets, then checked both general benchmark performance and Reddit-domain performance.
+        This separates "can the model learn the task?" from "does it transfer to the crisis case study?"
+      </div>
+    </section>
+
+    <section id="validation">
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">06 / Validation</div>
+          <h2>How I checked the work.</h2>
+        </div>
+        <p class="short">
+          I used several checks because a single score can be misleading: held-out testing,
+          official benchmark validation/test splits, cross-validation, random seeds, t-tests,
+          and explainability metrics.
+        </p>
+      </div>
+
+      <div class="grid two">
+        <article class="card">
+          <h3>Held-out test set</h3>
+          <p>The 15% test set was used after training to evaluate unseen samples. Metrics included accuracy and macro-F1.</p>
+        </article>
+        <article class="card alt">
+          <h3>Official benchmark splits</h3>
+          <p>SST-2 validation and GoEmotions test/validation splits were used in validation notebooks for general-dataset checks.</p>
+        </article>
+        <article class="card alt">
+          <h3>5-fold cross-validation</h3>
+          <p>DistilRoBERTa cross-validation used KFold with five folds, shuffle enabled, and random_state=42.</p>
+        </article>
+        <article class="card">
+          <h3>Random seed stability</h3>
+          <p>Training was repeated across seeds 42, 123, 456, 789, and 999, then summarized with mean and standard deviation.</p>
+        </article>
+        <article class="card">
+          <h3>Statistical testing</h3>
+          <p>Paired t-tests compared single-task versus multi-task macro-F1 across seeds.</p>
+        </article>
+        <article class="card alt">
+          <h3>Explainability checks</h3>
+          <p>Captum Integrated Gradients measured token importance, faithfulness, attribution stability, and bias-style ratios.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="results">
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">07 / Results</div>
+          <h2>What the final checks showed.</h2>
+        </div>
+        <p class="short">
+          The clearest result: single-task emotion models were much stronger on general GoEmotions-style
+          validation. On Reddit-domain data, results were noisier and paired tests did not show significant
+          single-task versus multi-task differences.
+        </p>
+      </div>
+
+      <div class="grid four">
+        <div class="metric" style="--tone: var(--green);">
+          <small>BERTweet sentiment, general</small>
+          <b>0.872</b>
+          <span>final optimized accuracy</span>
+        </div>
+        <div class="metric" style="--tone: var(--blue);">
+          <small>BERTweet multitask, Reddit sentiment</small>
+          <b>0.423</b>
+          <span>final macro-F1 for sentiment head</span>
+        </div>
+        <div class="metric" style="--tone: var(--green);">
+          <small>DistilRoBERTa emotion, general</small>
+          <b>0.726</b>
+          <span>final optimized macro-F1</span>
+        </div>
+        <div class="metric" style="--tone: var(--rust);">
+          <small>DistilRoBERTa multitask, general</small>
+          <b>0.343</b>
+          <span>final combined macro-F1</span>
+        </div>
+      </div>
+
+      <table style="margin-top: 22px;">
+        <thead>
+          <tr>
+            <th>Final optimized model</th>
+            <th>General dataset result</th>
+            <th>Reddit-domain result</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>BERTweet sentiment</td>
+            <td>Accuracy 0.8717</td>
+            <td>Accuracy 0.5789</td>
+          </tr>
+          <tr>
+            <td>BERTweet emotion</td>
+            <td>Accuracy 0.3033</td>
+            <td>Accuracy 0.2526</td>
+          </tr>
+          <tr>
+            <td>BERTweet multi-task</td>
+            <td>Sentiment F1 0.5856; emotion F1 0.0776; combined F1 0.3316</td>
+            <td>Sentiment F1 0.4234; emotion F1 0.0672; combined F1 0.2453</td>
+          </tr>
+          <tr>
+            <td>DistilRoBERTa sentiment</td>
+            <td>Accuracy 0.8333; F1 0.5811</td>
+            <td>Accuracy 0.6105; F1 0.3988</td>
+          </tr>
+          <tr>
+            <td>DistilRoBERTa emotion</td>
+            <td>Accuracy 0.7627; F1 0.7264</td>
+            <td>Accuracy 0.1158; F1 0.0782</td>
+          </tr>
+          <tr>
+            <td>DistilRoBERTa multi-task</td>
+            <td>Sentiment F1 0.5602; emotion F1 0.1248; combined F1 0.3425</td>
+            <td>Sentiment F1 0.2614; emotion F1 0.0505; combined F1 0.1560</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="grid two" style="margin-top: 20px;">
+        <article class="card">
+          <h3>General-dataset seed stability</h3>
+          <p>BERTweet emotion single-task: macro-F1 0.6395 +/- 0.0985. DistilRoBERTa emotion single-task: macro-F1 0.7066 +/- 0.0046.</p>
+        </article>
+        <article class="card alt">
+          <h3>Paired t-test summary</h3>
+          <p>General emotion differences between single-task and multi-task were significant. General sentiment was not significant. Reddit-domain comparisons were not significant.</p>
+        </article>
+      </div>
+
+      <div class="note">
+        Interpretation for non-technical readers: the pipeline worked best when sentiment and emotion were trained separately.
+        Multi-task learning was useful to test, but it did not consistently improve the final results.
+      </div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">08 / Deployment</div>
+          <h2>How it became usable.</h2>
+        </div>
+        <p class="short">
+          The trained artifacts were designed to be loaded by a Streamlit app for single-text inference,
+          probability display, token attribution, and counterfactual checks.
+        </p>
+      </div>
+
+      <div class="grid">
+        <article class="card">
+          <h3>Model paths</h3>
+          <p>The app expects model folders for sentiment, emotion, and multi-task backbones under a local models directory.</p>
+        </article>
+        <article class="card alt">
+          <h3>Inference</h3>
+          <p>The app tokenizes the input, runs the selected model, applies softmax, and shows label confidence.</p>
+        </article>
+        <article class="card">
+          <h3>Explainability</h3>
+          <p>It highlights important tokens using Integrated Gradients where available, with a gradient fallback path.</p>
+        </article>
+      </div>
+    </section>
+
+    <footer class="foot">
+      Built from the project notebooks and repository artifacts: data collection, preprocessing, BERTweet,
+      DistilRoBERTa, validation, cross-validation, XAI, and t-test workflows.
+    </footer>
+  </main>
+</body>
+</html>
